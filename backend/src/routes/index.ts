@@ -46,6 +46,9 @@ router.put('/conductores/:id', authMiddleware, requireRole('admin'), conductorCo
 // Eliminar conductor (solo admin)
 router.delete('/conductores/:id', authMiddleware, requireRole('admin'), conductorController.delete);
 
+// Importar conductores desde Excel (solo admin)
+router.post('/conductores/importar', authMiddleware, requireRole('admin'), conductorController.importarExcel);
+
 // Calendario de conductor
 router.get('/conductores/:id/calendario', authMiddleware, conductorController.getCalendario);
 

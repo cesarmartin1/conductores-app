@@ -40,6 +40,7 @@ export const conductoresApi = {
   getCalendario: (id: number, año: number, mes: number) =>
     api.get(`/conductores/${id}/calendario`, { params: { año, mes } }),
   getEstadoGeneral: () => api.get('/conductores/estado'),
+  importarExcel: (filePath: string) => api.post('/conductores/importar', { filePath }),
 };
 
 // API de Jornadas

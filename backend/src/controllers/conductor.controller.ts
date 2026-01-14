@@ -3,6 +3,8 @@ import db, { Conductor } from '../models/database';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ce561Service, AlertasDescansoSemanal } from '../services/ce561.service';
 import { calendarioService } from '../services/calendario.service';
+import * as XLSX from 'xlsx';
+import path from 'path';
 
 export const conductorController = {
   // Listar todos los conductores
@@ -222,6 +224,104 @@ export const conductorController = {
     } catch (error) {
       console.error('Error obteniendo estado general:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  },
+
+  // Importar conductores desde Excel
+  async importarExcel(req: AuthRequest, res: Response) {
+    try {
+      const { filePath } = req.body;
+
+      if (!filePath) {
+        return res.status(400).json({ error: 'Se requiere la ruta del archivo Excel' });
+      }
+
+      // Leer archivo Excel
+      const workbook = XLSX.readFile(filePath);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+      // Función para convertir número de serie Excel a fecha
+      const excelDateToISO = (serial: number): string => {
+        if (!serial || typeof serial !== 'number') return new Date().toISOString().split('T')[0];
+        const utc_days = Math.floor(serial - 25569);
+        const date = new Date(utc_days * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+      };
+
+      // Separar nombre completo en nombre y apellidos
+      const separarNombre = (nombreCompleto: string): { nombre: string; apellidos: string } => {
+        if (!nombreCompleto) return { nombre: '', apellidos: '' };
+        const partes = nombreCompleto.trim().split(' ');
+        if (partes.length === 1) {
+          return { nombre: partes[0], apellidos: '' };
+        }
+        // Primer palabra es el nombre, el resto apellidos
+        return {
+          nombre: partes[0],
+          apellidos: partes.slice(1).join(' ')
+        };
+      };
+
+      const resultados = {
+        importados: 0,
+        actualizados: 0,
+        errores: [] as string[]
+      };
+
+      // Saltar la cabecera (fila 0)
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        if (!row || row.length === 0) continue;
+
+        try {
+          const dni = row[1]?.toString()?.trim(); // NIF
+          const nombreCompleto = row[4]?.toString()?.trim(); // Nombre
+          const telefono = row[12]?.toString()?.trim() || row[11]?.toString()?.trim() || row[13]?.toString()?.trim(); // Teléfonos
+          const licencia = row[16]?.toString()?.trim(); // Clase de permiso
+          const fechaAltaSerial = row[18]; // Alta Empresa
+          const estado = row[20]?.toString()?.trim(); // Estado
+
+          if (!dni || !nombreCompleto) {
+            resultados.errores.push(`Fila ${i + 1}: DNI o nombre vacío`);
+            continue;
+          }
+
+          const { nombre, apellidos } = separarNombre(nombreCompleto);
+          const fechaAlta = excelDateToISO(fechaAltaSerial);
+          const activo = estado === 'A' ? 1 : 0;
+
+          // Verificar si ya existe
+          const existente = db.prepare('SELECT id FROM conductores WHERE dni = ?').get(dni) as { id: number } | undefined;
+
+          if (existente) {
+            // Actualizar
+            db.prepare(`
+              UPDATE conductores
+              SET nombre = ?, apellidos = ?, licencia = ?, telefono = ?, activo = ?
+              WHERE dni = ?
+            `).run(nombre, apellidos, licencia || null, telefono || null, activo, dni);
+            resultados.actualizados++;
+          } else {
+            // Insertar
+            db.prepare(`
+              INSERT INTO conductores (nombre, apellidos, dni, licencia, telefono, fecha_alta, activo)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(nombre, apellidos, dni, licencia || null, telefono || null, fechaAlta, activo);
+            resultados.importados++;
+          }
+        } catch (err: any) {
+          resultados.errores.push(`Fila ${i + 1}: ${err.message}`);
+        }
+      }
+
+      res.json({
+        message: 'Importación completada',
+        ...resultados
+      });
+    } catch (error: any) {
+      console.error('Error importando Excel:', error);
+      res.status(500).json({ error: `Error importando archivo: ${error.message}` });
     }
   }
 };

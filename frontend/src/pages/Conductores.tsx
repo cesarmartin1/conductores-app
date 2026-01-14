@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { conductoresApi } from '../services/api';
-import { Plus, Search, Edit2, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Eye, Upload } from 'lucide-react';
 
 interface Conductor {
   id: number;
@@ -22,6 +22,8 @@ export default function Conductores() {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingConductor, setEditingConductor] = useState<Conductor | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importResult, setImportResult] = useState<{ message: string; importados: number; actualizados: number; errores: string[] } | null>(null);
 
   useEffect(() => {
     fetchConductores();
@@ -66,13 +68,22 @@ export default function Conductores() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Conductores</h1>
         {isAdmin && (
-          <button
-            onClick={() => { setEditingConductor(null); setShowForm(true); }}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Nuevo conductor
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImport(true)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Upload className="w-5 h-5" />
+              Importar Excel
+            </button>
+            <button
+              onClick={() => { setEditingConductor(null); setShowForm(true); }}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Nuevo conductor
+            </button>
+          </div>
         )}
       </div>
 
@@ -171,6 +182,28 @@ export default function Conductores() {
             setShowForm(false);
             fetchConductores();
           }}
+        />
+      )}
+
+      {/* Modal Import */}
+      {showImport && (
+        <ImportModal
+          onClose={() => { setShowImport(false); setImportResult(null); }}
+          onImport={async (filePath) => {
+            try {
+              const response = await conductoresApi.importarExcel(filePath);
+              setImportResult(response.data);
+              fetchConductores();
+            } catch (err: any) {
+              setImportResult({
+                message: 'Error',
+                importados: 0,
+                actualizados: 0,
+                errores: [err.response?.data?.error || 'Error importando archivo']
+              });
+            }
+          }}
+          result={importResult}
         />
       )}
     </div>
@@ -304,6 +337,98 @@ function ConductorForm({ conductor, onClose, onSave }: ConductorFormProps) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+interface ImportModalProps {
+  onClose: () => void;
+  onImport: (filePath: string) => void;
+  result: { message: string; importados: number; actualizados: number; errores: string[] } | null;
+}
+
+function ImportModal({ onClose, onImport, result }: ImportModalProps) {
+  const [filePath, setFilePath] = useState('/Users/cesarmartin/Library/CloudStorage/OneDrive-AutocaresDavid/supercarpeta/Conductores.xlsx');
+  const [loading, setLoading] = useState(false);
+
+  const handleImport = async () => {
+    setLoading(true);
+    await onImport(filePath);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+        <div className="p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">Importar conductores desde Excel</h2>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {!result ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ruta del archivo Excel
+                </label>
+                <input
+                  type="text"
+                  value={filePath}
+                  onChange={(e) => setFilePath(e.target.value)}
+                  className="input"
+                  placeholder="/ruta/al/archivo.xlsx"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Introduce la ruta completa del archivo Excel en tu sistema
+                </p>
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+                <p className="font-medium mb-1">Formato esperado:</p>
+                <p>El Excel debe tener las columnas: NIF, Nombre, Teléfono, Clase de permiso, Alta Empresa, Estado</p>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className={`p-4 rounded-lg ${result.errores.length > 0 && result.importados === 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                <p className={`font-medium ${result.errores.length > 0 && result.importados === 0 ? 'text-red-700' : 'text-green-700'}`}>
+                  {result.message}
+                </p>
+                <div className="mt-2 text-sm">
+                  <p>Importados: {result.importados}</p>
+                  <p>Actualizados: {result.actualizados}</p>
+                </div>
+              </div>
+
+              {result.errores.length > 0 && (
+                <div className="bg-yellow-50 p-3 rounded-lg">
+                  <p className="font-medium text-yellow-700 mb-2">Errores ({result.errores.length}):</p>
+                  <ul className="text-sm text-yellow-600 list-disc list-inside max-h-32 overflow-y-auto">
+                    {result.errores.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">
+              {result ? 'Cerrar' : 'Cancelar'}
+            </button>
+            {!result && (
+              <button
+                onClick={handleImport}
+                disabled={loading || !filePath}
+                className="btn-primary flex-1"
+              >
+                {loading ? 'Importando...' : 'Importar'}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
