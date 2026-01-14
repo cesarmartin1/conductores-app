@@ -261,7 +261,7 @@ export const jornadaController = {
       }
 
       // Obtener todos los conductores activos
-      const conductores = db.prepare('SELECT id, nombre, apellidos FROM conductores WHERE activo = 1 ORDER BY apellidos, nombre').all() as any[];
+      const conductores = db.prepare('SELECT id, nombre, apellidos FROM conductores WHERE activo = 1 ORDER BY nombre, apellidos').all() as any[];
 
       // Obtener todas las jornadas en el rango
       const jornadas = db.prepare(`
