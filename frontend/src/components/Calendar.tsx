@@ -43,13 +43,13 @@ export default function Calendar({ calendario, conductorId, onUpdate }: Calendar
   const offset = primerDia ? (primerDia.diaSemana === 0 ? 6 : primerDia.diaSemana - 1) : 0;
 
   return (
-    <div>
+    <div className="max-w-md">
       {/* Header días de la semana */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="grid grid-cols-7 gap-0.5 mb-1">
         {DIAS_SEMANA.map((dia, i) => (
           <div
             key={dia}
-            className={`text-center text-sm font-medium py-2 ${i >= 5 ? 'text-gray-400' : 'text-gray-600'}`}
+            className={`text-center text-xs font-medium py-1 ${i >= 5 ? 'text-gray-400' : 'text-gray-600'}`}
           >
             {dia}
           </div>
@@ -57,10 +57,10 @@ export default function Calendar({ calendario, conductorId, onUpdate }: Calendar
       </div>
 
       {/* Grid del calendario */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {/* Espacios vacíos antes del primer día */}
         {Array.from({ length: offset }).map((_, i) => (
-          <div key={`empty-${i}`} className="aspect-square" />
+          <div key={`empty-${i}`} className="h-10" />
         ))}
 
         {/* Días del mes */}
@@ -71,15 +71,12 @@ export default function Calendar({ calendario, conductorId, onUpdate }: Calendar
             <button
               key={dia.fecha}
               onClick={() => setSelectedDay(dia)}
-              className={`aspect-square p-1 rounded-lg border transition-all hover:ring-2 hover:ring-primary-300 ${ESTADO_COLORES[dia.estado]}`}
+              className={`h-10 p-0.5 rounded border transition-all hover:ring-2 hover:ring-primary-300 ${ESTADO_COLORES[dia.estado]}`}
             >
-              <div className="h-full flex flex-col">
-                <span className="text-sm font-medium">{diaNum}</span>
+              <div className="h-full flex flex-col items-center justify-center">
+                <span className="text-xs font-medium leading-none">{diaNum}</span>
                 {dia.jornada && dia.jornada.tipo === 'trabajo' && (
-                  <span className="text-xs mt-auto">{dia.jornada.horas_conduccion}h</span>
-                )}
-                {dia.festivo && (
-                  <span className="text-[10px] truncate">{dia.festivo.nombre}</span>
+                  <span className="text-[9px] text-gray-500">{dia.jornada.horas_conduccion}h</span>
                 )}
               </div>
             </button>
@@ -88,13 +85,13 @@ export default function Calendar({ calendario, conductorId, onUpdate }: Calendar
       </div>
 
       {/* Leyenda */}
-      <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t text-xs">
         <LeyendaItem color="bg-blue-100" label="Trabajo" />
         <LeyendaItem color="bg-green-100" label="Descanso" />
         <LeyendaItem color="bg-purple-100" label="Festivo" />
         <LeyendaItem color="bg-yellow-100" label="Vacaciones" />
         <LeyendaItem color="bg-red-100" label="Baja" />
-        <LeyendaItem color="bg-gray-100" label="Fin de semana" />
+        <LeyendaItem color="bg-gray-100" label="Finde" />
       </div>
 
       {/* Modal de edición */}
@@ -115,9 +112,9 @@ export default function Calendar({ calendario, conductorId, onUpdate }: Calendar
 
 function LeyendaItem({ color, label }: { color: string; label: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className={`w-4 h-4 rounded ${color}`} />
-      <span className="text-sm text-gray-600">{label}</span>
+    <div className="flex items-center gap-1">
+      <div className={`w-3 h-3 rounded ${color}`} />
+      <span className="text-gray-600">{label}</span>
     </div>
   );
 }
