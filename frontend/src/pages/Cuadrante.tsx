@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { jornadasApi } from '../services/api';
 import {
   ChevronLeft,
@@ -416,8 +417,13 @@ export default function Cuadrante() {
 
               return (
                 <tr key={conductor.id} className="hover:bg-gray-50">
-                  <td className="sticky left-0 bg-white px-2 py-1.5 text-xs font-medium text-gray-900 border-b border-r whitespace-nowrap">
-                    {conductor.nombre} {conductor.apellidos.split(' ')[0]}
+                  <td className="sticky left-0 bg-white px-2 py-1.5 text-xs font-medium border-b border-r whitespace-nowrap">
+                    <Link
+                      to={`/conductores/${conductor.id}`}
+                      className="text-gray-900 hover:text-primary-600 hover:underline"
+                    >
+                      {conductor.nombre} {conductor.apellidos.split(' ')[0]}
+                    </Link>
                   </td>
                   {dias.map(dia => {
                     const fecha = formatFecha(dia);
