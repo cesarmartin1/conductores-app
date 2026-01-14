@@ -309,7 +309,7 @@ export const jornadaController = {
   // Actualizar rápidamente una celda del cuadrante
   async updateCelda(req: AuthRequest, res: Response) {
     try {
-      const { conductorId, fecha, tipo } = req.body;
+      const { conductorId, fecha, tipo, horasTrabajo = 8 } = req.body;
 
       if (!conductorId || !fecha) {
         return res.status(400).json({ error: 'Campos requeridos: conductorId, fecha' });
@@ -340,14 +340,16 @@ export const jornadaController = {
         const existente = db.prepare('SELECT id FROM jornadas WHERE conductor_id = ? AND fecha = ?')
           .get(conductorId, f) as { id: number } | undefined;
 
+        const horas = tipo === 'trabajo' ? horasTrabajo : 0;
+
         if (existente) {
-          db.prepare('UPDATE jornadas SET tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(tipo, existente.id);
+          db.prepare('UPDATE jornadas SET tipo = ?, horas_trabajo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            .run(tipo, horas, existente.id);
         } else {
           db.prepare(`
             INSERT INTO jornadas (conductor_id, fecha, tipo, horas_conduccion, horas_trabajo, pausas_minutos, descanso_nocturno)
-            VALUES (?, ?, ?, 0, 0, 0, 0)
-          `).run(conductorId, f, tipo);
+            VALUES (?, ?, ?, 0, ?, 0, 0)
+          `).run(conductorId, f, tipo, horas);
         }
       }
 

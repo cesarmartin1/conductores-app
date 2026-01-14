@@ -54,8 +54,8 @@ export const jornadasApi = {
   registrarMasivo: (data: any) => api.post('/jornadas/masivo', data),
   getCuadrante: (desde: string, hasta: string) =>
     api.get('/jornadas/cuadrante', { params: { desde, hasta } }),
-  updateCelda: (conductorId: number, fecha: string, tipo: string | null) =>
-    api.post('/jornadas/celda', { conductorId, fecha, tipo }),
+  updateCelda: (conductorId: number, fecha: string, tipo: string | null, horasTrabajo?: number) =>
+    api.post('/jornadas/celda', { conductorId, fecha, tipo, horasTrabajo }),
 };
 
 // API de Festivos

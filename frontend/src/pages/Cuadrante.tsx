@@ -68,6 +68,8 @@ export default function Cuadrante() {
   const [loading, setLoading] = useState(true);
   const [selectedCell, setSelectedCell] = useState<{ conductorId: number; fecha: string } | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [showHorasInput, setShowHorasInput] = useState(false);
+  const [horasTrabajo, setHorasTrabajo] = useState(8);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Calcular fechas del periodo (26 del mes anterior al 25 del mes actual)
@@ -160,11 +162,23 @@ export default function Cuadrante() {
   };
 
   // Actualizar celda
-  const handleTipoSelect = async (tipo: TipoJornada) => {
+  const handleTipoSelect = async (tipo: TipoJornada, horas?: number) => {
     if (!selectedCell) return;
 
+    // Si es trabajo y no tenemos las horas, mostrar input
+    if (tipo === 'trabajo' && !showHorasInput) {
+      setShowHorasInput(true);
+      setHorasTrabajo(8);
+      return;
+    }
+
     try {
-      const response = await jornadasApi.updateCelda(selectedCell.conductorId, selectedCell.fecha, tipo);
+      const response = await jornadasApi.updateCelda(
+        selectedCell.conductorId,
+        selectedCell.fecha,
+        tipo,
+        tipo === 'trabajo' ? (horas ?? horasTrabajo) : undefined
+      );
       const fechasActualizadas: string[] = response.data.fechas || [selectedCell.fecha];
 
       setData(prev => {
@@ -188,6 +202,7 @@ export default function Cuadrante() {
 
     setSelectedCell(null);
     setMenuPosition(null);
+    setShowHorasInput(false);
   };
 
   // Obtener tipo de jornada para una celda
@@ -501,37 +516,62 @@ export default function Cuadrante() {
               })}
             </span>
             <button
-              onClick={() => { setSelectedCell(null); setMenuPosition(null); }}
+              onClick={() => { setSelectedCell(null); setMenuPosition(null); setShowHorasInput(false); }}
               className="text-gray-400 hover:text-gray-600"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {Object.entries(TIPOS_CONFIG).map(([key, config]) => (
-            <button
-              key={key}
-              onClick={() => handleTipoSelect(key as TipoJornada)}
-              className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 ${config.color}`}
-            >
-              <span className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${config.bgColor}`}>
-                {config.short}
-              </span>
-              {config.label}
-            </button>
-          ))}
+          {showHorasInput ? (
+            <div className="px-3 py-3">
+              <label className="block text-xs font-medium text-gray-700 mb-2">Horas trabajadas</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="15"
+                  value={horasTrabajo}
+                  onChange={(e) => setHorasTrabajo(parseInt(e.target.value) || 8)}
+                  className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                  autoFocus
+                />
+                <button
+                  onClick={() => handleTipoSelect('trabajo', horasTrabajo)}
+                  className="flex-1 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {Object.entries(TIPOS_CONFIG).map(([key, config]) => (
+                <button
+                  key={key}
+                  onClick={() => handleTipoSelect(key as TipoJornada)}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 ${config.color}`}
+                >
+                  <span className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${config.bgColor}`}>
+                    {config.short}
+                  </span>
+                  {config.label}
+                </button>
+              ))}
 
-          <div className="border-t border-gray-100 mt-1 pt-1">
-            <button
-              onClick={() => handleTipoSelect(null)}
-              className="w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50 flex items-center gap-2"
-            >
-              <span className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center text-[10px]">
-                -
-              </span>
-              Borrar
-            </button>
-          </div>
+              <div className="border-t border-gray-100 mt-1 pt-1">
+                <button
+                  onClick={() => handleTipoSelect(null)}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <span className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center text-[10px]">
+                    -
+                  </span>
+                  Borrar
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
