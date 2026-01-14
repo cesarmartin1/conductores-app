@@ -48,7 +48,6 @@ const TIPOS_CONFIG: { [key: string]: { label: string; short: string; color: stri
   trabajo: { label: 'Trabajo', short: 'T', color: 'text-blue-700', bgColor: 'bg-blue-100' },
   descanso_normal: { label: 'Descanso Normal (45h)', short: '45', color: 'text-green-700', bgColor: 'bg-green-200' },
   descanso_reducido: { label: 'Descanso Reducido (24h)', short: '24', color: 'text-green-600', bgColor: 'bg-green-100' },
-  festivo: { label: 'Festivo', short: 'F', color: 'text-purple-700', bgColor: 'bg-purple-100' },
   vacaciones: { label: 'Vacaciones', short: 'V', color: 'text-orange-700', bgColor: 'bg-orange-100' },
   baja: { label: 'Baja', short: 'B', color: 'text-red-700', bgColor: 'bg-red-100' },
   formacion: { label: 'Formacion', short: 'Fo', color: 'text-cyan-700', bgColor: 'bg-cyan-100' },
@@ -56,7 +55,7 @@ const TIPOS_CONFIG: { [key: string]: { label: string; short: string; color: stri
 };
 
 // Tipos que cuentan como descanso
-const TIPOS_DESCANSO = ['descanso_normal', 'descanso_reducido', 'festivo', 'vacaciones'];
+const TIPOS_DESCANSO = ['descanso_normal', 'descanso_reducido', 'vacaciones'];
 
 export default function Cuadrante() {
   // El periodo va del 26 del mes anterior al 25 del mes actual
