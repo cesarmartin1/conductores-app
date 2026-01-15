@@ -22,7 +22,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Logging de requests
 app.use((req, res, next) => {
@@ -33,12 +33,6 @@ app.use((req, res, next) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Error interno del servidor' });
 });
 
 // Iniciar servidor
@@ -53,6 +47,11 @@ async function startServer() {
     const routes = (await import('./routes')).default;
     app.use('/api', routes);
 
+    // 404 solo para API
+    app.use('/api', (req, res) => {
+      res.status(404).json({ error: 'Ruta no encontrada' });
+    });
+
     // Servir frontend en producción
     if (process.env.NODE_ENV === 'production') {
       const frontendPath = path.join(__dirname, '../../frontend/dist');
@@ -61,6 +60,12 @@ async function startServer() {
         res.sendFile(path.join(frontendPath, 'index.html'));
       });
     }
+
+    // Error handler (después de rutas y static)
+    app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+      console.error('Error:', err);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    });
 
     app.listen(PORT, () => {
       console.log(`

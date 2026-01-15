@@ -36,6 +36,7 @@ export const conductoresApi = {
   get: (id: number) => api.get(`/conductores/${id}`),
   create: (data: any) => api.post('/conductores', data),
   update: (id: number, data: any) => api.put(`/conductores/${id}`, data),
+  updateApodo: (id: number, apodo: string) => api.patch(`/conductores/${id}/apodo`, { apodo }),
   delete: (id: number) => api.delete(`/conductores/${id}`),
   getCalendario: (id: number, año: number, mes: number) =>
     api.get(`/conductores/${id}/calendario`, { params: { año, mes } }),
@@ -90,4 +91,31 @@ export const configApi = {
   get: (clave: string) => api.get(`/config/${clave}`),
   update: (clave: string, valor: string) => api.put(`/config/${clave}`, { valor }),
   updateBatch: (configs: { [key: string]: string }) => api.post('/config', configs),
+};
+
+// API de Contratos
+export const contratosApi = {
+  list: (conductorId: number) => api.get(`/conductores/${conductorId}/contratos`),
+  get: (id: number) => api.get(`/contratos/${id}`),
+  create: (conductorId: number, data: any) => api.post(`/conductores/${conductorId}/contratos`, { conductorId, ...data }),
+  update: (id: number, data: any) => api.put(`/contratos/${id}`, data),
+  delete: (id: number) => api.delete(`/contratos/${id}`),
+};
+
+// API de Guardias de Tráfico
+export const guardiasApi = {
+  list: (activo?: boolean) => api.get('/guardias', { params: { activo } }),
+  get: (id: number) => api.get(`/guardias/${id}`),
+  create: (data: any) => api.post('/guardias', data),
+  update: (id: number, data: any) => api.put(`/guardias/${id}`, data),
+  delete: (id: number) => api.delete(`/guardias/${id}`),
+  getCuadrante: (desde: string, hasta: string) =>
+    api.get('/guardias/cuadrante', { params: { desde, hasta } }),
+  updateCelda: (guardiaId: number, fecha: string, tipo: string | null, turno?: string, horas?: number) =>
+    api.post('/guardias/cuadrante/celda', { guardiaId, fecha, tipo, turno, horas }),
+  // Contratos de guardias
+  listContratos: (guardiaId: number) => api.get(`/guardias/${guardiaId}/contratos`),
+  createContrato: (guardiaId: number, data: any) => api.post(`/guardias/${guardiaId}/contratos`, data),
+  updateContrato: (contratoId: number, data: any) => api.put(`/guardias/contratos/${contratoId}`, data),
+  deleteContrato: (contratoId: number) => api.delete(`/guardias/contratos/${contratoId}`),
 };

@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
   Truck,
-  Grid3X3
+  Grid3X3,
+  FileSignature
 } from 'lucide-react';
 
 export default function Layout() {
@@ -25,6 +26,7 @@ export default function Layout() {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'supervisor', 'conductor'] },
     { to: '/cuadrante', icon: Grid3X3, label: 'Cuadrante', roles: ['admin', 'supervisor'] },
     { to: '/conductores', icon: Users, label: 'Conductores', roles: ['admin', 'supervisor'] },
+    { to: '/contratos', icon: FileSignature, label: 'Contratos', roles: ['admin', 'supervisor'] },
     { to: '/jornadas', icon: Calendar, label: 'Jornadas', roles: ['admin', 'supervisor', 'conductor'] },
     { to: '/festivos', icon: CalendarDays, label: 'Festivos', roles: ['admin', 'supervisor'] },
     { to: '/informes', icon: FileText, label: 'Informes', roles: ['admin', 'supervisor', 'conductor'] },

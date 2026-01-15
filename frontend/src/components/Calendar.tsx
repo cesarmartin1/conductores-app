@@ -28,8 +28,14 @@ const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const ESTADO_COLORES: Record<string, string> = {
   trabajo: 'bg-blue-100 text-blue-800 border-blue-200',
   descanso: 'bg-green-100 text-green-800 border-green-200',
+  descanso_normal: 'bg-green-100 text-green-800 border-green-200',
+  descanso_reducido: 'bg-teal-100 text-teal-800 border-teal-200',
+  compensatorio: 'bg-purple-100 text-purple-800 border-purple-200',
+  festivo: 'bg-amber-100 text-amber-800 border-amber-200',
   vacaciones: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   baja: 'bg-red-100 text-red-800 border-red-200',
+  formacion: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  inactivo: 'bg-gray-200 text-gray-600 border-gray-300',
   finde: 'bg-gray-100 text-gray-500 border-gray-200',
   pendiente: 'bg-white text-gray-400 border-gray-200',
 };
@@ -86,10 +92,14 @@ export default function Calendar({ calendario, conductorId, onUpdate }: Calendar
       {/* Leyenda */}
       <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t text-xs">
         <LeyendaItem color="bg-blue-100" label="Trabajo" />
-        <LeyendaItem color="bg-green-100" label="Descanso" />
+        <LeyendaItem color="bg-green-100" label="Descanso 45h" />
+        <LeyendaItem color="bg-teal-100" label="Descanso 24h" />
+        <LeyendaItem color="bg-purple-100" label="Compensatorio" />
+        <LeyendaItem color="bg-amber-100" label="Festivo" />
         <LeyendaItem color="bg-yellow-100" label="Vacaciones" />
         <LeyendaItem color="bg-red-100" label="Baja" />
-        <LeyendaItem color="bg-gray-100" label="Finde" />
+        <LeyendaItem color="bg-indigo-100" label="Formacion" />
+        <LeyendaItem color="bg-gray-200" label="Inactivo" />
       </div>
 
       {/* Modal de edición */}
@@ -125,33 +135,15 @@ interface JornadaModalProps {
 }
 
 function JornadaModal({ dia, conductorId, onClose, onSave }: JornadaModalProps) {
+  // Convertir tipo "descanso" antiguo a "descanso_normal"
+  const tipoInicial = dia.jornada?.tipo === 'descanso' ? 'descanso_normal' : (dia.jornada?.tipo || 'trabajo');
+
   const [formData, setFormData] = useState({
-    tipo: dia.jornada?.tipo || 'trabajo',
-    horasConduccion: dia.jornada?.horas_conduccion || 0,
-    horasTrabajo: dia.jornada?.horas_trabajo || 0,
-    pausasMinutos: 45,
-    descansoNocturno: 11,
-    notas: dia.jornada?.notas || '',
+    tipo: tipoInicial,
+    horasTrabajo: dia.jornada?.horas_trabajo || 8,
   });
-  const [validacion, setValidacion] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const validarJornada = async () => {
-    if (formData.tipo !== 'trabajo') return;
-
-    try {
-      const response = await jornadasApi.validar({
-        conductorId,
-        fecha: dia.fecha,
-        horasConduccion: formData.horasConduccion,
-        horasTrabajo: formData.horasTrabajo,
-      });
-      setValidacion(response.data);
-    } catch (error) {
-      console.error('Error validando:', error);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,17 +151,16 @@ function JornadaModal({ dia, conductorId, onClose, onSave }: JornadaModalProps) 
     setLoading(true);
 
     try {
-      await jornadasApi.upsert({
+      // Usar updateCelda para mantener sincronía con el cuadrante
+      await jornadasApi.updateCelda(
         conductorId,
-        fecha: dia.fecha,
-        ...formData,
-      });
+        dia.fecha,
+        formData.tipo,
+        formData.tipo === 'trabajo' ? formData.horasTrabajo : undefined
+      );
       onSave();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error guardando jornada');
-      if (err.response?.data?.alertas) {
-        setValidacion({ alertas: err.response.data.alertas });
-      }
     } finally {
       setLoading(false);
     }
@@ -202,24 +193,6 @@ function JornadaModal({ dia, conductorId, onClose, onSave }: JornadaModalProps) 
             </div>
           )}
 
-          {/* Alertas de validación */}
-          {validacion?.alertas?.length > 0 && (
-            <div className="space-y-2">
-              {validacion.alertas.map((alerta: any, i: number) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-lg text-sm ${
-                    alerta.tipo === 'error' ? 'bg-red-50 text-red-700' :
-                    alerta.tipo === 'warning' ? 'bg-yellow-50 text-yellow-700' :
-                    'bg-blue-50 text-blue-700'
-                  }`}
-                >
-                  {alerta.mensaje}
-                </div>
-              ))}
-            </div>
-          )}
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de jornada</label>
             <select
@@ -228,85 +201,33 @@ function JornadaModal({ dia, conductorId, onClose, onSave }: JornadaModalProps) 
               className="input"
             >
               <option value="trabajo">Trabajo</option>
-              <option value="descanso">Descanso</option>
+              <option value="descanso_normal">Descanso 45h</option>
+              <option value="descanso_reducido">Descanso 24h</option>
+              <option value="compensatorio">Compensatorio</option>
+              <option value="festivo">Festivo</option>
               <option value="vacaciones">Vacaciones</option>
               <option value="baja">Baja</option>
+              <option value="formacion">Formacion</option>
+              <option value="inactivo">Inactivo</option>
             </select>
           </div>
 
           {formData.tipo === 'trabajo' && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Horas conducción
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="15"
-                    value={formData.horasConduccion}
-                    onChange={(e) => setFormData({ ...formData, horasConduccion: parseFloat(e.target.value) || 0 })}
-                    onBlur={validarJornada}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Horas trabajo
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="15"
-                    value={formData.horasTrabajo}
-                    onChange={(e) => setFormData({ ...formData, horasTrabajo: parseFloat(e.target.value) || 0 })}
-                    className="input"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pausas (minutos)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.pausasMinutos}
-                    onChange={(e) => setFormData({ ...formData, pausasMinutos: parseInt(e.target.value) || 0 })}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Descanso nocturno (h)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={formData.descansoNocturno}
-                    onChange={(e) => setFormData({ ...formData, descansoNocturno: parseFloat(e.target.value) || 0 })}
-                    className="input"
-                  />
-                </div>
-              </div>
-            </>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Horas trabajo
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="15"
+                value={formData.horasTrabajo}
+                onChange={(e) => setFormData({ ...formData, horasTrabajo: parseFloat(e.target.value) || 0 })}
+                className="input"
+              />
+            </div>
           )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-            <textarea
-              value={formData.notas}
-              onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
-              className="input"
-              rows={2}
-            />
-          </div>
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">

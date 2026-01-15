@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import db, { Usuario } from '../models/database';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'conductores-app-secret-key-2024';
+const DEFAULT_JWT_SECRET = 'conductores-app-secret-key-2024';
+const ENV_JWT_SECRET = process.env.JWT_SECRET;
+if (!ENV_JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET debe configurarse en producción');
+}
+const JWT_SECRET = ENV_JWT_SECRET || DEFAULT_JWT_SECRET;
 
 export interface AuthRequest extends Request {
   user?: {

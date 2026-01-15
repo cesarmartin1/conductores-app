@@ -11,6 +11,10 @@ import Informes from './pages/Informes';
 import Usuarios from './pages/Usuarios';
 import Cuadrante from './pages/Cuadrante';
 import Configuracion from './pages/Configuracion';
+import Contratos from './pages/Contratos';
+import Guardias from './pages/Guardias';
+import GuardiaDetalle from './pages/GuardiaDetalle';
+import CuadranteGuardias from './pages/CuadranteGuardias';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -75,6 +79,38 @@ export default function App() {
         />
         <Route path="conductores" element={<Conductores />} />
         <Route path="conductores/:id" element={<ConductorDetalle />} />
+        <Route
+          path="contratos"
+          element={
+            <SupervisorRoute>
+              <Contratos />
+            </SupervisorRoute>
+          }
+        />
+        <Route
+          path="cuadrante-guardias"
+          element={
+            <SupervisorRoute>
+              <CuadranteGuardias />
+            </SupervisorRoute>
+          }
+        />
+        <Route
+          path="guardias"
+          element={
+            <SupervisorRoute>
+              <Guardias />
+            </SupervisorRoute>
+          }
+        />
+        <Route
+          path="guardias/:id"
+          element={
+            <SupervisorRoute>
+              <GuardiaDetalle />
+            </SupervisorRoute>
+          }
+        />
         <Route path="jornadas" element={<Jornadas />} />
         <Route path="festivos" element={<Festivos />} />
         <Route path="informes" element={<Informes />} />

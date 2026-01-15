@@ -4,6 +4,8 @@ import { conductorController } from '../controllers/conductor.controller';
 import { jornadaController } from '../controllers/jornada.controller';
 import { festivoController } from '../controllers/festivo.controller';
 import { configController } from '../controllers/config.controller';
+import { contratoController } from '../controllers/contrato.controller';
+import { guardiaController } from '../controllers/guardia.controller';
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth.middleware';
 import { Response } from 'express';
 
@@ -43,6 +45,9 @@ router.post('/conductores', authMiddleware, requireRole('admin'), conductorContr
 // Actualizar conductor (solo admin)
 router.put('/conductores/:id', authMiddleware, requireRole('admin'), conductorController.update);
 
+// Actualizar apodo (admin/supervisor o el propio conductor)
+router.patch('/conductores/:id/apodo', authMiddleware, conductorController.updateApodo);
+
 // Eliminar conductor (solo admin)
 router.delete('/conductores/:id', authMiddleware, requireRole('admin'), conductorController.delete);
 
@@ -51,6 +56,24 @@ router.post('/conductores/importar', authMiddleware, requireRole('admin'), condu
 
 // Calendario de conductor
 router.get('/conductores/:id/calendario', authMiddleware, conductorController.getCalendario);
+
+// Contratos de conductor
+router.get('/conductores/:conductorId/contratos', authMiddleware, contratoController.list);
+router.post('/conductores/:conductorId/contratos', authMiddleware, requireRole('admin'), contratoController.create);
+
+// ==================== CONTRATOS ====================
+
+// Verificar si fecha está en contrato
+router.get('/contratos/verificar', authMiddleware, contratoController.verificarFecha);
+
+// Obtener contrato
+router.get('/contratos/:id', authMiddleware, contratoController.get);
+
+// Actualizar contrato
+router.put('/contratos/:id', authMiddleware, requireRole('admin'), contratoController.update);
+
+// Eliminar contrato
+router.delete('/contratos/:id', authMiddleware, requireRole('admin'), contratoController.delete);
 
 // ==================== JORNADAS ====================
 
@@ -172,5 +195,34 @@ router.put('/config/:clave', authMiddleware, requireRole('admin'), configControl
 
 // Actualizar múltiples configuraciones
 router.post('/config', authMiddleware, requireRole('admin'), configController.updateBatch);
+
+// ==================== GUARDIAS DE TRÁFICO ====================
+
+// Listar guardias
+router.get('/guardias', authMiddleware, requireRole('admin', 'supervisor'), guardiaController.list);
+
+// Cuadrante de guardias
+router.get('/guardias/cuadrante', authMiddleware, requireRole('admin', 'supervisor'), guardiaController.getCuadrante);
+
+// Actualizar celda del cuadrante de guardias
+router.post('/guardias/cuadrante/celda', authMiddleware, requireRole('admin', 'supervisor'), guardiaController.updateCelda);
+
+// Obtener guardia
+router.get('/guardias/:id', authMiddleware, requireRole('admin', 'supervisor'), guardiaController.get);
+
+// Crear guardia
+router.post('/guardias', authMiddleware, requireRole('admin'), guardiaController.create);
+
+// Actualizar guardia
+router.put('/guardias/:id', authMiddleware, requireRole('admin'), guardiaController.update);
+
+// Eliminar guardia
+router.delete('/guardias/:id', authMiddleware, requireRole('admin'), guardiaController.delete);
+
+// Contratos de guardia
+router.get('/guardias/:id/contratos', authMiddleware, requireRole('admin', 'supervisor'), guardiaController.listContratos);
+router.post('/guardias/:id/contratos', authMiddleware, requireRole('admin'), guardiaController.createContrato);
+router.put('/guardias/contratos/:contratoId', authMiddleware, requireRole('admin'), guardiaController.updateContrato);
+router.delete('/guardias/contratos/:contratoId', authMiddleware, requireRole('admin'), guardiaController.deleteContrato);
 
 export default router;

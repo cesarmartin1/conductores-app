@@ -11,15 +11,47 @@ export const conductorController = {
   async list(req: AuthRequest, res: Response) {
     try {
       const { activo } = req.query;
-      let query = 'SELECT * FROM conductores';
-      const params: any[] = [];
+      const hoy = new Date().toISOString().split('T')[0];
+      let query = `
+        SELECT
+          c.*,
+          (
+            SELECT tipo_contrato
+            FROM contratos
+            WHERE conductor_id = c.id
+              AND fecha_inicio <= ?
+              AND (fecha_fin IS NULL OR fecha_fin >= ?)
+            ORDER BY fecha_inicio DESC
+            LIMIT 1
+          ) AS contrato_activo_tipo,
+          (
+            SELECT porcentaje_jornada
+            FROM contratos
+            WHERE conductor_id = c.id
+              AND fecha_inicio <= ?
+              AND (fecha_fin IS NULL OR fecha_fin >= ?)
+            ORDER BY fecha_inicio DESC
+            LIMIT 1
+          ) AS contrato_activo_porcentaje,
+          (
+            SELECT por_horas
+            FROM contratos
+            WHERE conductor_id = c.id
+              AND fecha_inicio <= ?
+              AND (fecha_fin IS NULL OR fecha_fin >= ?)
+            ORDER BY fecha_inicio DESC
+            LIMIT 1
+          ) AS contrato_activo_por_horas
+        FROM conductores c
+      `;
+      const params: any[] = [hoy, hoy, hoy, hoy, hoy, hoy];
 
       if (activo !== undefined) {
-        query += ' WHERE activo = ?';
+        query += ' WHERE c.activo = ?';
         params.push(activo === 'true' ? 1 : 0);
       }
 
-      query += ' ORDER BY apellidos, nombre ASC';
+      query += ' ORDER BY c.apellidos, c.nombre ASC';
       const conductores = db.prepare(query).all(...params);
 
       res.json(conductores);
@@ -61,7 +93,7 @@ export const conductorController = {
   // Crear conductor
   async create(req: AuthRequest, res: Response) {
     try {
-      const { nombre, apellidos, dni, licencia, telefono, fechaAlta } = req.body;
+      const { nombre, apellidos, apodo, dni, licencia, telefono, fechaAlta, porcentaje_jornada } = req.body;
 
       if (!nombre || !apellidos || !dni || !fechaAlta) {
         return res.status(400).json({ error: 'Campos requeridos: nombre, apellidos, dni, fechaAlta' });
@@ -74,11 +106,15 @@ export const conductorController = {
       }
 
       const stmt = db.prepare(`
-        INSERT INTO conductores (nombre, apellidos, dni, licencia, telefono, fecha_alta)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO conductores (nombre, apellidos, apodo, dni, licencia, telefono, fecha_alta, porcentaje_jornada)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      const result = stmt.run(nombre, apellidos, dni, licencia || null, telefono || null, fechaAlta);
+      const porcentaje = porcentaje_jornada !== undefined ? Number(porcentaje_jornada) : 100;
+      if (Number.isNaN(porcentaje) || porcentaje < 0 || porcentaje > 100) {
+        return res.status(400).json({ error: 'El porcentaje de jornada debe estar entre 0 y 100' });
+      }
+      const result = stmt.run(nombre, apellidos, apodo || null, dni, licencia || null, telefono || null, fechaAlta, porcentaje);
 
       const conductor = db.prepare('SELECT * FROM conductores WHERE id = ?').get(result.lastInsertRowid);
 
@@ -93,7 +129,7 @@ export const conductorController = {
   async update(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { nombre, apellidos, dni, licencia, telefono, activo } = req.body;
+      const { nombre, apellidos, apodo, dni, licencia, telefono, activo, fecha_alta, fecha_fin_contrato, tipo_contrato, horas_semanales, cobra_disponibilidad, porcentaje_jornada } = req.body;
 
       const conductor = db.prepare('SELECT * FROM conductores WHERE id = ?').get(id);
       if (!conductor) {
@@ -110,6 +146,10 @@ export const conductorController = {
       if (apellidos !== undefined) {
         updates.push('apellidos = ?');
         values.push(apellidos);
+      }
+      if (apodo !== undefined) {
+        updates.push('apodo = ?');
+        values.push(apodo || null);
       }
       if (dni !== undefined) {
         // Verificar DNI único
@@ -132,6 +172,34 @@ export const conductorController = {
         updates.push('activo = ?');
         values.push(activo ? 1 : 0);
       }
+      if (fecha_alta !== undefined) {
+        updates.push('fecha_alta = ?');
+        values.push(fecha_alta);
+      }
+      if (fecha_fin_contrato !== undefined) {
+        updates.push('fecha_fin_contrato = ?');
+        values.push(fecha_fin_contrato || null);
+      }
+      if (tipo_contrato !== undefined) {
+        updates.push('tipo_contrato = ?');
+        values.push(tipo_contrato);
+      }
+      if (horas_semanales !== undefined) {
+        updates.push('horas_semanales = ?');
+        values.push(horas_semanales);
+      }
+      if (cobra_disponibilidad !== undefined) {
+        updates.push('cobra_disponibilidad = ?');
+        values.push(cobra_disponibilidad ? 1 : 0);
+      }
+      if (porcentaje_jornada !== undefined) {
+        const porcentaje = Number(porcentaje_jornada);
+        if (Number.isNaN(porcentaje) || porcentaje < 0 || porcentaje > 100) {
+          return res.status(400).json({ error: 'El porcentaje de jornada debe estar entre 0 y 100' });
+        }
+        updates.push('porcentaje_jornada = ?');
+        values.push(porcentaje);
+      }
 
       if (updates.length === 0) {
         return res.status(400).json({ error: 'No hay campos para actualizar' });
@@ -144,6 +212,34 @@ export const conductorController = {
       res.json(updatedConductor);
     } catch (error) {
       console.error('Error actualizando conductor:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  },
+
+  // Actualizar apodo (admin/supervisor o el propio conductor)
+  async updateApodo(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const { apodo } = req.body;
+
+      if (apodo !== undefined && typeof apodo !== 'string') {
+        return res.status(400).json({ error: 'El apodo debe ser un texto' });
+      }
+
+      const conductor = db.prepare('SELECT * FROM conductores WHERE id = ?').get(id);
+      if (!conductor) {
+        return res.status(404).json({ error: 'Conductor no encontrado' });
+      }
+
+      if (req.user!.rol === 'conductor' && req.user!.conductorId !== parseInt(id)) {
+        return res.status(403).json({ error: 'No tienes permiso para actualizar este conductor' });
+      }
+
+      db.prepare('UPDATE conductores SET apodo = ? WHERE id = ?').run(apodo?.trim() || null, id);
+      const updatedConductor = db.prepare('SELECT * FROM conductores WHERE id = ?').get(id);
+      res.json(updatedConductor);
+    } catch (error) {
+      console.error('Error actualizando apodo:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   },

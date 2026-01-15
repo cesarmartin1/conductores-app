@@ -254,7 +254,7 @@ export class CE561Service {
     const finSemana = new Date(inicioSemana);
     finSemana.setDate(finSemana.getDate() + 6);
 
-    const conductores = db.prepare('SELECT id, nombre, apellidos FROM conductores WHERE activo = 1').all() as any[];
+    const conductores = db.prepare('SELECT id, nombre, apellidos, apodo FROM conductores WHERE activo = 1').all() as any[];
 
     return conductores.map(c => {
       const validacion = this.validarJornada(c.id, hoyStr, 0, 0);
@@ -290,7 +290,7 @@ export class CE561Service {
 
       return {
         conductorId: c.id,
-        nombre: `${c.nombre} ${c.apellidos}`,
+        nombre: c.apodo ? c.apodo : `${c.nombre} ${c.apellidos}`,
         estado: errores > 0 ? 'error' : warnings > 0 ? 'warning' : 'ok',
         alertas: validacion.alertas.length,
         diasTrabajadosSemana: diasTrabajo,

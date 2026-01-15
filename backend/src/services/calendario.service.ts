@@ -127,6 +127,10 @@ export class CalendarioService {
     const ultimoDia = new Date(año, mes, 0);
     const dias: CalendarioDia[] = [];
 
+    // Obtener contratos del conductor
+    const contratos = db.prepare('SELECT fecha_inicio, fecha_fin FROM contratos WHERE conductor_id = ?')
+      .all(conductorId) as { fecha_inicio: string; fecha_fin: string | null }[];
+
     // Obtener jornadas del mes
     const jornadas = db.prepare(`
       SELECT * FROM jornadas
@@ -145,6 +149,9 @@ export class CalendarioService {
       const diaSemana = new Date(año, mes - 1, dia).getDay();
       const esFinde = diaSemana === 0 || diaSemana === 6;
 
+      // Verificar si está dentro de algún contrato
+      const enContrato = this.estaEnContrato(contratos, fecha);
+
       const jornada = jornadasMap.get(fecha);
       const festivo = festivosMap.get(fecha);
 
@@ -154,11 +161,25 @@ export class CalendarioService {
         esFinde,
         festivo: festivo || null,
         jornada: jornada || null,
-        estado: this.determinarEstado(jornada, festivo, esFinde)
+        estado: enContrato ? this.determinarEstado(jornada, festivo, esFinde) : 'inactivo',
+        enContrato
       });
     }
 
     return dias;
+  }
+
+  // Verificar si una fecha está dentro de algún contrato
+  private estaEnContrato(contratos: { fecha_inicio: string; fecha_fin: string | null }[], fecha: string): boolean {
+    // Si no hay contratos, consideramos que no está en contrato
+    if (!contratos || contratos.length === 0) {
+      return false;
+    }
+
+    // Verificar si algún contrato cubre la fecha
+    return contratos.some(c =>
+      c.fecha_inicio <= fecha && (!c.fecha_fin || c.fecha_fin >= fecha)
+    );
   }
 
   // Determinar estado visual del día
@@ -167,9 +188,14 @@ export class CalendarioService {
       switch (jornada.tipo) {
         case 'trabajo': return 'trabajo';
         case 'descanso': return 'descanso';
+        case 'descanso_normal': return 'descanso_normal';
+        case 'descanso_reducido': return 'descanso_reducido';
+        case 'compensatorio': return 'compensatorio';
         case 'festivo': return 'festivo';
         case 'vacaciones': return 'vacaciones';
         case 'baja': return 'baja';
+        case 'formacion': return 'formacion';
+        case 'inactivo': return 'inactivo';
       }
     }
     if (festivo) return 'festivo';
@@ -236,10 +262,20 @@ export class CalendarioService {
   // Vacaciones no cuentan (ni para días trabajados ni para descansos)
   // Formación cuenta como día trabajado para convenio, no para tacógrafo
   calcularDescansosPendientes(conductorId: number, año: number, mes: number): DescansosPendientes {
-    // Obtener todas las jornadas desde el inicio del año hasta el mes actual
-    const desde = `${año}-01-01`;
-    const ultimoDiaMes = new Date(año, mes, 0).getDate();
-    const hasta = `${año}-${String(mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
+    // Período: del 26 del mes anterior al 25 del mes actual
+    let añoDesde = año;
+    let mesDesde = mes - 1;
+    if (mesDesde === 0) {
+      mesDesde = 12;
+      añoDesde = año - 1;
+    }
+    const desde = `${añoDesde}-${String(mesDesde).padStart(2, '0')}-26`;
+    const hasta = `${año}-${String(mes).padStart(2, '0')}-25`;
+
+    // Calcular días del período
+    const fechaDesde = new Date(añoDesde, mesDesde - 1, 26);
+    const fechaHasta = new Date(año, mes - 1, 25);
+    const diasDelPeriodo = Math.round((fechaHasta.getTime() - fechaDesde.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
     const jornadas = db.prepare(`
       SELECT * FROM jornadas
@@ -247,12 +283,13 @@ export class CalendarioService {
       ORDER BY fecha ASC
     `).all(conductorId, desde, hasta) as Jornada[];
 
-    // Obtener festivos nacionales del período
+    // Obtener festivos nacionales del período (pueden ser de dos años diferentes)
     const festivosNacionales = db.prepare(`
       SELECT fecha FROM festivos
-      WHERE año = ? AND ambito = 'nacional'
-    `).all(año) as { fecha: string }[];
+      WHERE ambito = 'nacional' AND fecha BETWEEN ? AND ?
+    `).all(desde, hasta) as { fecha: string }[];
     const festivosSet = new Set(festivosNacionales.map(f => f.fecha));
+    const numFestivosNacionales = festivosNacionales.length;
 
     let diasTrabajadosConvenio = 0; // Incluye trabajo + formación
     let diasTrabajadosTacografo = 0; // Solo trabajo
@@ -286,6 +323,7 @@ export class CalendarioService {
 
         case 'descanso_normal':
         case 'descanso_reducido':
+        case 'compensatorio':
           diasDescansoTomados++;
           break;
 
@@ -297,43 +335,75 @@ export class CalendarioService {
       }
     }
 
+    // Contar días no disponibles (vacaciones, bajas, inactivos)
+    let diasNoDisponibles = 0;
+    for (const jornada of jornadas) {
+      if (jornada.tipo === 'vacaciones' || jornada.tipo === 'baja' || jornada.tipo === 'inactivo') {
+        diasNoDisponibles++;
+      }
+    }
+
+    // Días disponibles = días del período - días no disponibles
+    const diasDisponibles = diasDelPeriodo - diasNoDisponibles;
+
     // Calcular días de descanso correspondientes
-    // Por cada 7 días trabajados = 2 días de descanso de convenio
-    const descansosPorDiasTrabajados = Math.floor(diasTrabajadosConvenio / 7) * 2;
+    // Fórmula: (días disponibles / 7) * 2 + festivos nacionales del período
+    const descansosPorPeriodo = (diasDisponibles / 7) * 2;
 
     // Total de descansos que le corresponden
-    const descansosCorrespondientes = descansosPorDiasTrabajados + domingosTrabajados + festivosNacionalesTrabajados;
+    const descansosCorrespondientes = descansosPorPeriodo + numFestivosNacionales;
 
-    // Días pendientes = correspondientes - tomados
+    // Días pendientes = correspondientes - tomados (puede ser decimal)
     const diasPendientes = Math.max(0, descansosCorrespondientes - diasDescansoTomados);
 
-    // Calcular porcentaje (excluyendo vacaciones del total de días)
-    const diasTotalesContables = jornadas.filter(j => j.tipo !== 'vacaciones').length;
-    const porcentajeDescanso = diasTotalesContables > 0
-      ? ((diasDescansoTomados / diasTotalesContables) * 100)
+    // Días totales disponibles para porcentajes (basado en jornadas registradas)
+    const diasTotalesDisponibles = jornadas.filter(j =>
+      j.tipo !== 'vacaciones' &&
+      j.tipo !== 'baja' &&
+      j.tipo !== 'inactivo'
+    ).length;
+
+    // Porcentaje de días trabajados sobre días disponibles
+    const porcentajeTrabajados = diasTotalesDisponibles > 0
+      ? ((diasTrabajadosConvenio / diasTotalesDisponibles) * 100)
+      : 0;
+
+    // Porcentaje de descanso sobre días disponibles
+    const porcentajeDescanso = diasTotalesDisponibles > 0
+      ? ((diasDescansoTomados / diasTotalesDisponibles) * 100)
       : 0;
 
     return {
+      // Período
+      periodo: { desde, hasta },
+      diasDelPeriodo,
+      diasNoDisponibles,
+      diasDisponibles,
+      // Trabajo
       diasTrabajadosConvenio,
       diasTrabajadosTacografo,
       diasFormacion,
       domingosTrabajados,
       festivosNacionalesTrabajados,
+      // Descansos
       diasDescansoTomados,
       diasVacaciones,
-      descansosCorrespondientes,
-      diasPendientes,
+      diasTotalesDisponibles,
+      // Cálculo de descansos correspondientes: (diasDisponibles/7)*2 + festivos nacionales
+      descansosCorrespondientes: Math.round(descansosCorrespondientes * 100) / 100,
+      diasPendientes: Math.round(diasPendientes * 100) / 100,
+      // Porcentajes
+      porcentajeTrabajados: Math.round(porcentajeTrabajados * 10) / 10,
       porcentajeDescanso: Math.round(porcentajeDescanso * 10) / 10,
       detalle: {
-        porDiasTrabajados: descansosPorDiasTrabajados,
-        porDomingos: domingosTrabajados,
-        porFestivos: festivosNacionalesTrabajados
+        descansosPorPeriodo: Math.round(descansosPorPeriodo * 100) / 100,
+        festivosNacionalesEnPeriodo: numFestivosNacionales
       }
     };
   }
 }
 
-export type EstadoDia = 'trabajo' | 'descanso' | 'festivo' | 'vacaciones' | 'baja' | 'finde' | 'pendiente';
+export type EstadoDia = 'trabajo' | 'descanso' | 'descanso_normal' | 'descanso_reducido' | 'compensatorio' | 'festivo' | 'vacaciones' | 'baja' | 'formacion' | 'finde' | 'pendiente' | 'inactivo';
 
 export interface CalendarioDia {
   fecha: string;
@@ -342,6 +412,7 @@ export interface CalendarioDia {
   festivo: Festivo | null;
   jornada: Jornada | null;
   estado: EstadoDia;
+  enContrato: boolean;
 }
 
 export interface ResumenMensual {
@@ -358,6 +429,10 @@ export interface ResumenMensual {
 }
 
 export interface DescansosPendientes {
+  periodo: { desde: string; hasta: string };
+  diasDelPeriodo: number;
+  diasNoDisponibles: number;
+  diasDisponibles: number;
   diasTrabajadosConvenio: number;
   diasTrabajadosTacografo: number;
   diasFormacion: number;
@@ -365,13 +440,14 @@ export interface DescansosPendientes {
   festivosNacionalesTrabajados: number;
   diasDescansoTomados: number;
   diasVacaciones: number;
+  diasTotalesDisponibles: number;
   descansosCorrespondientes: number;
   diasPendientes: number;
+  porcentajeTrabajados: number;
   porcentajeDescanso: number;
   detalle: {
-    porDiasTrabajados: number;
-    porDomingos: number;
-    porFestivos: number;
+    descansosPorPeriodo: number;
+    festivosNacionalesEnPeriodo: number;
   };
 }
 

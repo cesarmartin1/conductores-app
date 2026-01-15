@@ -8,11 +8,16 @@ interface Conductor {
   id: number;
   nombre: string;
   apellidos: string;
+  apodo?: string | null;
   dni: string;
   licencia: string;
   telefono: string;
   fecha_alta: string;
   activo: number;
+  contrato_activo_tipo?: string | null;
+  porcentaje_jornada?: number | null;
+  contrato_activo_porcentaje?: number | null;
+  contrato_activo_por_horas?: number | null;
 }
 
 export default function Conductores() {
@@ -52,8 +57,13 @@ export default function Conductores() {
   };
 
   const filteredConductores = conductores.filter(c =>
-    `${c.nombre} ${c.apellidos} ${c.dni}`.toLowerCase().includes(search.toLowerCase())
+    `${c.nombre} ${c.apellidos} ${c.apodo || ''} ${c.dni}`.toLowerCase().includes(search.toLowerCase())
   );
+  const getPorcentajeActivo = (c: Conductor) => c.contrato_activo_porcentaje ?? c.porcentaje_jornada ?? 100;
+  const esPorHoras = (c: Conductor) => c.contrato_activo_por_horas === 1;
+  const porHoras = filteredConductores.filter(c => esPorHoras(c));
+  const temporalesActivos = filteredConductores.filter(c => !esPorHoras(c) && c.contrato_activo_tipo === 'temporal');
+  const restoConductores = filteredConductores.filter(c => !esPorHoras(c) && c.contrato_activo_tipo !== 'temporal');
 
   if (loading) {
     return (
@@ -102,74 +112,71 @@ export default function Conductores() {
       </div>
 
       {/* Table */}
-      <div className="card">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-sm text-gray-500 border-b">
-                <th className="pb-3 font-medium">Nombre</th>
-                <th className="pb-3 font-medium">DNI</th>
-                <th className="pb-3 font-medium">Licencia</th>
-                <th className="pb-3 font-medium">Teléfono</th>
-                <th className="pb-3 font-medium">Alta</th>
-                <th className="pb-3 font-medium">Estado</th>
-                <th className="pb-3 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filteredConductores.map((conductor) => (
-                <tr key={conductor.id} className="hover:bg-gray-50">
-                  <td className="py-4">
-                    <span className="font-medium text-gray-900">
-                      {conductor.nombre} {conductor.apellidos}
-                    </span>
-                  </td>
-                  <td className="py-4 text-gray-600">{conductor.dni}</td>
-                  <td className="py-4 text-gray-600">{conductor.licencia || '-'}</td>
-                  <td className="py-4 text-gray-600">{conductor.telefono || '-'}</td>
-                  <td className="py-4 text-gray-600">{conductor.fecha_alta}</td>
-                  <td className="py-4">
-                    <span className={`badge ${conductor.activo ? 'badge-success' : 'badge-error'}`}>
-                      {conductor.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-2 justify-end">
-                      <Link
-                        to={`/conductores/${conductor.id}`}
-                        className="p-2 text-gray-500 hover:text-primary-600 hover:bg-gray-100 rounded-lg"
-                        title="Ver detalle"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Link>
-                      {isAdmin && (
-                        <>
-                          <button
-                            onClick={() => { setEditingConductor(conductor); setShowForm(true); }}
-                            className="p-2 text-gray-500 hover:text-primary-600 hover:bg-gray-100 rounded-lg"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(conductor.id)}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Desactivar"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="card space-y-6">
+        {porHoras.length > 0 && (
+          <div className="border border-sky-200 bg-sky-50/40 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-sky-800">Por horas</h2>
+              <span className="text-xs font-semibold text-sky-700 bg-sky-100 border border-sky-200 px-2 py-0.5 rounded-full">
+                {porHoras.length}
+              </span>
+            </div>
+            <ConductoresTable
+              conductores={porHoras}
+              isAdmin={isAdmin}
+              onEdit={(c) => { setEditingConductor(c); setShowForm(true); }}
+              onDelete={handleDelete}
+              esPorHoras={esPorHoras}
+              getPorcentajeActivo={getPorcentajeActivo}
+              groupLabel="Por horas"
+            />
+          </div>
+        )}
+
+        {temporalesActivos.length > 0 && (
+          <div className="border border-amber-200 bg-amber-50/40 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-amber-800">Temporales con contrato activo</h2>
+              <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                {temporalesActivos.length}
+              </span>
+            </div>
+            <ConductoresTable
+              conductores={temporalesActivos}
+              isAdmin={isAdmin}
+              onEdit={(c) => { setEditingConductor(c); setShowForm(true); }}
+              onDelete={handleDelete}
+              esPorHoras={esPorHoras}
+              getPorcentajeActivo={getPorcentajeActivo}
+              groupLabel="Temporales con contrato activo"
+            />
+          </div>
+        )}
+
+        <div>
+          <div className="border border-gray-200 bg-white rounded-lg p-4">
+            {(porHoras.length > 0 || temporalesActivos.length > 0) && (
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-gray-700">Resto de conductores</h2>
+                <span className="text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+                  {restoConductores.length}
+                </span>
+              </div>
+            )}
+          <ConductoresTable
+            conductores={restoConductores}
+            isAdmin={isAdmin}
+            onEdit={(c) => { setEditingConductor(c); setShowForm(true); }}
+            onDelete={handleDelete}
+            esPorHoras={esPorHoras}
+            getPorcentajeActivo={getPorcentajeActivo}
+            groupLabel={porHoras.length > 0 || temporalesActivos.length > 0 ? 'Resto de conductores' : undefined}
+          />
+          </div>
         </div>
 
         {filteredConductores.length === 0 && (
-          <p className="text-center text-gray-500 py-8">No se encontraron conductores</p>
+          <p className="text-center text-gray-500 py-2">No se encontraron conductores</p>
         )}
       </div>
 
@@ -220,10 +227,12 @@ function ConductorForm({ conductor, onClose, onSave }: ConductorFormProps) {
   const [formData, setFormData] = useState({
     nombre: conductor?.nombre || '',
     apellidos: conductor?.apellidos || '',
+    apodo: conductor?.apodo || '',
     dni: conductor?.dni || '',
     licencia: conductor?.licencia || '',
     telefono: conductor?.telefono || '',
     fechaAlta: conductor?.fecha_alta || new Date().toISOString().split('T')[0],
+    porcentaje_jornada: conductor?.porcentaje_jornada ?? 100,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -285,6 +294,16 @@ function ConductorForm({ conductor, onClose, onSave }: ConductorFormProps) {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Apodo (opcional)</label>
+            <input
+              type="text"
+              value={formData.apodo}
+              onChange={(e) => setFormData({ ...formData, apodo: e.target.value })}
+              className="input"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">DNI</label>
             <input
               type="text"
@@ -328,6 +347,24 @@ function ConductorForm({ conductor, onClose, onSave }: ConductorFormProps) {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de jornada</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={formData.porcentaje_jornada}
+                onChange={(e) => setFormData({ ...formData, porcentaje_jornada: Number(e.target.value) })}
+                className="input w-24"
+              />
+              <span className="text-sm text-gray-500">
+                {((formData.porcentaje_jornada || 0) * 8 / 100).toFixed(2)} h/dia
+              </span>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">
               Cancelar
@@ -338,6 +375,113 @@ function ConductorForm({ conductor, onClose, onSave }: ConductorFormProps) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function ConductoresTable({
+  conductores,
+  isAdmin,
+  onEdit,
+  onDelete,
+  esPorHoras,
+  getPorcentajeActivo,
+  groupLabel
+}: {
+  conductores: Conductor[];
+  isAdmin: boolean;
+  onEdit: (conductor: Conductor) => void;
+  onDelete: (id: number) => void;
+  esPorHoras: (conductor: Conductor) => boolean;
+  getPorcentajeActivo: (conductor: Conductor) => number;
+  groupLabel?: string;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          {groupLabel && (
+            <tr className="text-left text-xs text-gray-600 bg-gray-50">
+              <th className="py-2 px-2 font-semibold border-b" colSpan={7}>
+                {groupLabel}
+              </th>
+            </tr>
+          )}
+          <tr className="text-left text-sm text-gray-500 border-b">
+            <th className="pb-3 font-medium">Nombre</th>
+            <th className="pb-3 font-medium">DNI</th>
+            <th className="pb-3 font-medium">Licencia</th>
+            <th className="pb-3 font-medium">Teléfono</th>
+            <th className="pb-3 font-medium">Alta</th>
+            <th className="pb-3 font-medium">Estado</th>
+            <th className="pb-3 font-medium"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {conductores.map((conductor) => (
+            <tr key={conductor.id} className="hover:bg-gray-50">
+              <td className="py-4">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-900">
+                    {conductor.apodo || `${conductor.nombre} ${conductor.apellidos}`}
+                  </span>
+                  {esPorHoras(conductor) ? (
+                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                      Por horas
+                    </span>
+                  ) : getPorcentajeActivo(conductor) < 100 ? (
+                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                      {getPorcentajeActivo(conductor)}% jornada
+                    </span>
+                  ) : null}
+                </div>
+              </td>
+              <td className="py-4 text-gray-600">{conductor.dni}</td>
+              <td className="py-4 text-gray-600">{conductor.licencia || '-'}</td>
+              <td className="py-4 text-gray-600">{conductor.telefono || '-'}</td>
+              <td className="py-4 text-gray-600">{conductor.fecha_alta}</td>
+              <td className="py-4">
+                <span className={`badge ${conductor.activo ? 'badge-success' : 'badge-error'}`}>
+                  {conductor.activo ? 'Activo' : 'Inactivo'}
+                </span>
+              </td>
+              <td className="py-4">
+                <div className="flex items-center gap-2 justify-end">
+                  <Link
+                    to={`/conductores/${conductor.id}`}
+                    className="p-2 text-gray-500 hover:text-primary-600 hover:bg-gray-100 rounded-lg"
+                    title="Ver detalle"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Link>
+                  {isAdmin && (
+                    <>
+                      <button
+                        onClick={() => onEdit(conductor)}
+                        className="p-2 text-gray-500 hover:text-primary-600 hover:bg-gray-100 rounded-lg"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDelete(conductor.id)}
+                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Desactivar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {conductores.length === 0 && (
+        <p className="text-center text-gray-500 py-4">No hay conductores en este grupo</p>
+      )}
     </div>
   );
 }
