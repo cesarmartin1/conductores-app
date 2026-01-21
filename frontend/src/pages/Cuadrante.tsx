@@ -400,7 +400,7 @@ export default function Cuadrante() {
         diasNoDisponibles++;
       }
 
-      if (enContrato && esLaborable && !festivoNacional && tipo !== 'vacaciones' && tipo !== 'baja' && tipo !== 'inactivo') {
+      if (enContrato && esLaborable && !festivoNacional) {
         diasLaborables++;
       }
     });
@@ -414,7 +414,7 @@ export default function Cuadrante() {
 
     const porcentajeTrabajado = esPorHoras(conductor)
       ? (diasLaborables > 0 ? Math.round((horasTrabajadas / (diasLaborables * 8)) * 100) : 0)
-      : (diasDisponibles > 0 ? Math.round((diasTrabajados / diasDisponibles) * 100) : 0);
+      : (diasLaborables > 0 ? Math.round((diasTrabajados / diasLaborables) * 100) : 0);
     const tarifaDomingosFestivos = Number.isFinite(data.importeDomingoFestivo) ? data.importeDomingoFestivo : 16.79;
     const importeDomingosFestivos = (domingosTrabajados + festivosNacionalesTrabajados) * tarifaDomingosFestivos;
 
@@ -465,6 +465,17 @@ export default function Cuadrante() {
   const horasMesPrevio = calcularHorasPeriodo(prevData);
   const variacionHoras = horasMesPrevio > 0 ? ((horasMes - horasMesPrevio) / horasMesPrevio) * 100 : 0;
   const variacionLabel = horasMesPrevio > 0 ? `${variacionHoras >= 0 ? '+' : ''}${variacionHoras.toFixed(1)}%` : '—';
+  const festivosPeriodo = data
+    ? Object.entries(data.festivos).sort((a, b) => a[0].localeCompare(b[0]))
+    : [];
+  const diasNoLaborables = data
+    ? dias.filter(dia => {
+        const fecha = formatFecha(dia);
+        const esFinDeSemana = dia.getDay() === 0 || dia.getDay() === 6;
+        const esFestivoNacional = data.festivosNacionales[fecha] === true;
+        return esFinDeSemana || esFestivoNacional;
+      }).length
+    : 0;
 
   return (
     <div className="h-full">
@@ -531,6 +542,22 @@ export default function Cuadrante() {
           <span><Euro className="w-3 h-3 inline mr-1" />Importe</span>
         </div>
       </div>
+
+      {(festivosPeriodo.length > 0 || data) && (
+        <div className="flex flex-wrap items-center gap-2 text-xs mb-4">
+          <span className="text-gray-500">No laborables: {diasNoLaborables}</span>
+          <span className="text-gray-500">Festivos del periodo:</span>
+          {festivosPeriodo.map(([fecha, nombre]) => (
+            <span
+              key={fecha}
+              className="px-2 py-1 rounded bg-purple-50 text-purple-700 border border-purple-100"
+              title={nombre}
+            >
+              {new Date(fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} {nombre}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Tabla del cuadrante */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
